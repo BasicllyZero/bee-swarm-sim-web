@@ -34773,9 +34773,9 @@ function BeeSwarmSimulator(DATA){
             setPaused:enabled=>{window.__devMenuPaused=!!enabled},
             spawnBee:(type,level)=>{
                 if(!beeInfo[type]) throw new Error('Unknown bee type')
-                const p=player.body.position
-                const bee=new Bee([p.x,p.y+1,p.z],type,Math.max(1,Math.min(20,Number(level)||1)),false,-1,-1)
-                objects.bees.push(bee)
+                player.addSlot(type,false,0)
+                player.updateHive()
+                player.computeMapDetails()
                 return objects.bees.length
             },
             teleportToField:name=>{
