@@ -27,7 +27,7 @@
   document.head.appendChild(style);
   const toggle=document.createElement('button');toggle.id='devMenuToggle';toggle.textContent='DEV MENU · F4';
   const panel=document.createElement('section');panel.id='devMenuPanel';panel.hidden=true;
-  panel.innerHTML=`<h3>Developer menu</h3><div class='sub'>Local game controls · changes apply to this save session</div><div class='line'><label for='dmHoney'>Unlimited honey</label><input id='dmHoney' type='checkbox'></div><div class='line'><label for='dmAuto'>Auto-collect tokens</label><input id='dmAuto' type='checkbox'></div><label for='dmSpeed'>Movement speed: <b id='dmSpeedValue'>1.0×</b></label><input id='dmSpeed' type='range' min='0.25' max='8' step='0.25' value='1'><label for='dmBee'>Bee type</label><select id='dmBee'></select><div class='split'><div><label for='dmLevel'>Bee level</label><input id='dmLevel' type='number' min='1' max='20' value='1'></div><div style='display:flex;align-items:end'><button id='dmSpawn' class='wide'>Spawn bee</button></div></div><label for='dmField'>Teleport to field</label><select id='dmField'></select><button id='dmTeleport' class='wide'>Teleport</button><div class='split'><button id='dmPause'>Pause simulation</button><button id='dmClose'>Close menu</button></div><div id='dmStatus' class='status'>Waiting for game…</div>`;
+  panel.innerHTML=`<h3>Developer menu</h3><div class='sub'>Local game controls · changes apply to this save session</div><div class='line'><label for='dmHoney'>Unlimited honey</label><input id='dmHoney' type='checkbox'></div><div class='line'><label for='dmAuto'>Auto-collect tokens</label><input id='dmAuto' type='checkbox'></div><label for='dmSpeed'>Movement speed: <b id='dmSpeedValue'>1.0×</b></label><input id='dmSpeed' type='range' min='0.25' max='8' step='0.25' value='1'><label for='dmBee'>Bee type</label><select id='dmBee'></select><div class='split'><div><label for='dmLevel'>Bee level</label><input id='dmLevel' type='number' min='1' max='20' value='1'></div><div style='display:flex;align-items:end'><button id='dmSpawn' class='wide'>Spawn bee</button></div></div><label for='dmField'>Teleport to field</label><select id='dmField'></select><button id='dmTeleport' class='wide'>Teleport</button><div class='split'><button id='dmPause'>Pause simulation</button><button id='dmClose'>Close menu</button></div><button id='dmReconnect' class='wide'>Reconnect to game</button><div id='dmStatus' class='status'>Waiting for game…</div>`;
   document.body.append(toggle,panel);
   const $=id=>panel.querySelector('#'+id);
   let api=null;
@@ -35,19 +35,29 @@
   const open=()=>{panel.hidden=!panel.hidden};
   toggle.addEventListener('click',open);$('dmClose').addEventListener('click',()=>panel.hidden=true);
   document.addEventListener('keydown',e=>{if(e.key==='F4'){e.preventDefault();open()}});
-  $('dmHoney').addEventListener('change',e=>{if(api)api.setUnlimitedHoney(e.target.checked)});
-  $('dmAuto').addEventListener('change',e=>{if(api)api.setAutoCollect(e.target.checked)});
-  $('dmSpeed').addEventListener('input',e=>{const v=Number(e.target.value);$('dmSpeedValue').textContent=v.toFixed(2)+'×';if(api)api.setSpeedMultiplier(v)});
-  $('dmSpawn').addEventListener('click',()=>{try{const n=api.spawnBee($('dmBee').value,$('dmLevel').value);status('Spawned a bee. Active bees: '+n)}catch(e){status('Could not spawn bee: '+e.message)}});
-  $('dmTeleport').addEventListener('click',()=>{try{status('Teleported to '+api.teleportToField($('dmField').value))}catch(e){status('Teleport failed: '+e.message)}});
-  $('dmPause').addEventListener('click',()=>{const paused=!api.getState().paused;api.setPaused(paused);$('dmPause').textContent=paused?'Resume simulation':'Pause simulation';status(paused?'Simulation paused':'Simulation resumed')});
+  const requireAPI=()=>{if(api)return true;status('Not connected yet — start a save, then tap Reconnect.');return false};
+  $('dmHoney').addEventListener('change',e=>{if(requireAPI())api.setUnlimitedHoney(e.target.checked)});
+  $('dmAuto').addEventListener('change',e=>{if(requireAPI())api.setAutoCollect(e.target.checked)});
+  $('dmSpeed').addEventListener('input',e=>{const v=Number(e.target.value);$('dmSpeedValue').textContent=v.toFixed(2)+'×';if(requireAPI())api.setSpeedMultiplier(v)});
+  $('dmSpawn').addEventListener('click',()=>{if(!requireAPI())return;try{const n=api.spawnBee($('dmBee').value,$('dmLevel').value);status('Spawned a bee. Active bees: '+n)}catch(e){status('Could not spawn bee: '+e.message)}});
+  $('dmTeleport').addEventListener('click',()=>{if(!requireAPI())return;try{status('Teleported to '+api.teleportToField($('dmField').value))}catch(e){status('Teleport failed: '+e.message)}});
+  $('dmPause').addEventListener('click',()=>{if(!requireAPI())return;const paused=!api.getState().paused;api.setPaused(paused);$('dmPause').textContent=paused?'Resume simulation':'Pause simulation';status(paused?'Simulation paused':'Simulation resumed')});
+  $('dmReconnect').addEventListener('click',()=>{api=null;initialize()});
   function initialize(){
-    if(!window.exposeCheats||api)return;
-    try{window.exposeCheats();api=window.devMenuAPI;if(!api)return;
-      for(const bee of api.getBeeTypes()){const o=document.createElement('option');o.value=bee;o.textContent=bee; if(bee==='basic')o.selected=true;$('dmBee').appendChild(o)}
-      for(const field of api.getFields()){const o=document.createElement('option');o.value=field.name;o.textContent=field.label;$('dmField').appendChild(o)}
+    if(api)return;
+    try{
+      if(!window.devMenuAPI&&typeof window.exposeCheats==='function')window.exposeCheats();
+      api=window.devMenuAPI||null;
+      if(!api){status('Start or load a game save, then tap Reconnect.');return}
+      if(!$('dmBee').options.length){
+        for(const bee of api.getBeeTypes()){const o=document.createElement('option');o.value=bee;o.textContent=bee;if(bee==='basic')o.selected=true;$('dmBee').appendChild(o)}
+        for(const field of api.getFields()){const o=document.createElement('option');o.value=field.name;o.textContent=field.label;$('dmField').appendChild(o)}
+      }
+      api.setUnlimitedHoney($('dmHoney').checked);
+      api.setAutoCollect($('dmAuto').checked);
+      api.setSpeedMultiplier(Number($('dmSpeed').value));
       status('Connected · '+api.getState().bees+' active bees');
-    }catch(e){status('Menu connection error: '+e.message)}
+    }catch(e){api=null;status('Connection error: '+e.message)}
   }
-  setInterval(()=>{initialize();if(api){api.tick();const s=api.getState();if(!$('dmPause').matches(':active'))$('dmPause').textContent=s.paused?'Resume simulation':'Pause simulation';status('Honey: '+Math.round(s.honey).toLocaleString()+' · Bees: '+s.bees+' · Speed: '+s.speed.toFixed(2)+'×'+(s.paused?' · PAUSED':''))}},250);
+  setInterval(()=>{initialize();if(api){try{api.tick();const s=api.getState();if(!$('dmPause').matches(':active'))$('dmPause').textContent=s.paused?'Resume simulation':'Pause simulation';status('Connected · Honey: '+Math.round(s.honey).toLocaleString()+' · Bees: '+s.bees+' · Speed: '+s.speed.toFixed(2)+'×'+(s.paused?' · PAUSED':''))}catch(e){api=null;status('Game disconnected: '+e.message)}}},250);
 })();
