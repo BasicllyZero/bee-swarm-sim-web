@@ -34061,6 +34061,12 @@ function BeeSwarmSimulator(DATA){
 
         dt=Math.min((now-then)*0.001,0.07)
 
+        if(window.__devMenuPaused){
+            then=now
+            window.parent.raf=window.requestAnimationFrame(loop)
+            return
+        }
+
         TIME+=dt
         frameCount++
         BEE_COLLECT=Math.sin(TIME*15)*0.25
@@ -34070,6 +34076,7 @@ function BeeSwarmSimulator(DATA){
         if(STATS_TICK){
 
             player.resetStats()
+            if(window.__devMenuSpeedMultiplier) player.walkSpeed*=window.__devMenuSpeedMultiplier
             
             for(let i=player.effects.length;i--;){
                 
@@ -34756,6 +34763,43 @@ function BeeSwarmSimulator(DATA){
         window.flowers=flowers
         window.NPCs=NPCs
         window.objects=objects
-    }
+        window.devMenuAPI={
+            getBeeTypes:()=>Object.keys(beeInfo),
+            getFields:()=>Object.keys(fieldInfo).map(name=>({name:name,label:name.replace(/([A-Z])/g,' $1')})),
+            getState:()=>({honey:player.honey,bees:objects.bees.length,speed:window.__devMenuSpeedMultiplier||1,paused:!!window.__devMenuPaused}),
+            setUnlimitedHoney:enabled=>{window.__devMenuUnlimitedHoney=!!enabled},
+            setAutoCollect:enabled=>{window.__devMenuAutoCollect=!!enabled},
+            setSpeedMultiplier:value=>{window.__devMenuSpeedMultiplier=Math.max(0.25,Math.min(8,Number(value)||1))},
+            setPaused:enabled=>{window.__devMenuPaused=!!enabled},
+            spawnBee:(type,level)=>{
+                if(!beeInfo[type]) throw new Error('Unknown bee type')
+                const p=player.body.position
+                const bee=new Bee([p.x,p.y+1,p.z],type,Math.max(1,Math.min(20,Number(level)||1)),false,-1,-1)
+                objects.bees.push(bee)
+                return objects.bees.length
+            },
+            teleportToField:name=>{
+                const f=fieldInfo[name]
+                if(!f) throw new Error('Unknown field')
+                player.body.position.set(f.x+f.width*0.5,f.y+3,f.z+f.length*0.5)
+                player.body.velocity.setZero()
+                player.dead=false
+                player.health=Math.max(player.health,100)
+                return name
+            },
+            collectAll:()=>{
+                let count=0
+                for(let i=objects.tokens.length-1;i>=0;i--){
+                    const token=objects.tokens[i]
+                    if(token&&typeof token.collect==='function'&&!token.collected){token.collect();count++}
+                }
+                return count
+            },
+            tick:()=>{
+                if(window.__devMenuUnlimitedHoney){player.honey=1e15;player.updateUI()}
+                if(window.__devMenuAutoCollect) window.devMenuAPI.collectAll()
+            }
+        }
+    }}
     
 }
