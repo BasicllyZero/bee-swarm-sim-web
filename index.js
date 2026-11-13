@@ -34774,6 +34774,9 @@ function BeeSwarmSimulator(DATA){
             spawnBee:(type,level)=>{
                 if(!beeInfo[type]) throw new Error('Unknown bee type')
                 player.addSlot(type,false,0)
+                const row=player.hive.length-1
+                const col=player.hive[row].length-1
+                player.hive[row][col].level=Math.max(1,Math.min(20,Number(level)||1))
                 player.updateHive()
                 player.computeMapDetails()
                 return objects.bees.length
